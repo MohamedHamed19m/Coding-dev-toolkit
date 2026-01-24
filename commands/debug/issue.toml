@@ -1,0 +1,17 @@
+description = "Force clear problem summary + top causes before suggesting fixes"
+
+prompt = """
+You are looping on bad fixes. Stop proposing code changes right now.
+
+First — answer ONLY these 4 short points:
+
+1. One sentence: What is actually still broken right now?
+2. Top 2-3 most likely root causes we haven't disproved yet.
+3. 2-4 files / locations / functions that are still suspicious.
+4. Single cheapest/fastest next debug step we haven't really tried properly.
+
+Keep each answer very short and direct.
+
+Only after these 4 points are you allowed to suggest any code change, tool call or edit.
+
+"""
