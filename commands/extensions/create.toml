@@ -1,0 +1,383 @@
+description = "Guide for creating Gemini CLI extensions from scratch or refactoring existing code into extensions"
+
+prompt = """
+# Gemini CLI Extension Creation Assistant
+
+I will help you create a Gemini CLI extension. This process works for:
+- Creating a new extension from scratch
+- Refactoring existing code/packages into an extension
+- Adding extension features to an existing project
+
+## Understanding Extension Components
+
+Extensions can include any combination of these features:
+
+### 1. MCP Servers (Model Context Protocol)
+**Purpose:** Expose new tools and data sources to the model
+**Use when:** You want the model to perform actions like fetching data from APIs, querying databases, or controlling applications
+**Invoked by:** Model (automatically when relevant)
+
+### 2. Custom Commands
+**Purpose:** Shortcuts that execute pre-defined prompts or shell commands
+**Use when:** You have repetitive tasks or complex prompts used frequently
+**Invoked by:** User (manually via `/command-name`)
+
+### 3. Context File (GEMINI.md)
+**Purpose:** Markdown file with instructions loaded into every session
+**Use when:** Defining extension personality, coding standards, or essential knowledge
+**Invoked by:** CLI (automatically provides to model)
+
+### 4. Agent Skills
+**Purpose:** Specialized instructions and workflows activated only when needed
+**Use when:** Complex, occasional tasks to avoid cluttering main context
+**Invoked by:** Model (when task is identified as relevant)
+
+### 5. Hooks
+**Purpose:** Intercept and customize CLI behavior at lifecycle events
+**Use when:** Automating actions based on model behavior (validation, logging, modifications)
+**Invoked by:** CLI (at specific lifecycle events)
+
+## Extension Structure
+
+### Recommended Directory Structure:
+```
+my-extension/
+├── gemini-extension.json    # Extension manifest (required)
+├── package.json             # Node.js dependencies (if using MCP/TypeScript)
+├── GEMINI.md               # Context file (optional)
+├── README.md               # Documentation
+├── commands/               # Custom commands (optional)
+│   └── [group]/
+│       └── [command].toml
+├── skills/                 # Agent skills (optional)
+│   └── [skill-name]/
+│       └── SKILL.md
+├── src/                    # Source code (for MCP servers)
+│   └── index.ts
+└── dist/                   # Build output
+
+# For simpler extensions:
+simple-extension/
+├── gemini-extension.json
+├── commands/
+│   └── utils/
+│       └── my-command.toml
+└── GEMINI.md
+```
+
+## Step-by-Step Creation Process
+
+### Step 1: Initialize Extension
+Create the manifest file `gemini-extension.json`:
+
+```json
+{
+  "name": "my-extension-name",
+  "version": "1.0.0",
+  "description": "Brief description of what this extension does",
+  "author": "Your Name",
+  "contextFileName": "GEMINI.md"
+}
+```
+
+### Step 2: Add MCP Server (if needed)
+If adding tools/data sources:
+
+1. Add to `gemini-extension.json`:
+```json
+{
+  "mcpServers": {
+    "serverName": {
+      "command": "node",
+      "args": ["${extensionPath}${/}dist/index.js"],
+      "cwd": "${extensionPath}"
+    }
+  }
+}
+```
+
+2. Create MCP server code (example in TypeScript):
+```typescript
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { z } from 'zod';
+
+const server = new McpServer({
+  name: 'my-server',
+  version: '1.0.0',
+});
+
+server.registerTool(
+  'tool_name',
+  {
+    description: 'What this tool does',
+    inputSchema: z.object({
+      param: z.string().describe('Parameter description')
+    }).shape,
+  },
+  async (params) => {
+    // Tool implementation
+    return {
+      content: [{
+        type: 'text',
+        text: 'Result'
+      }]
+    };
+  }
+);
+
+const transport = new StdioServerTransport();
+await server.connect(transport);
+```
+
+3. Add `package.json` with dependencies:
+```json
+{
+  "name": "my-extension",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
+```
+
+### Step 3: Add Custom Commands (if needed)
+Create `commands/[group]/[command-name].toml`:
+
+
+description = "Brief description of what this command does"
+prompt =
+[Your prompt template here]
+
+Use {{args}} to reference command arguments
+Use !{shell command} to execute shell commands and include output
+
+Example:
+Please analyze the following search results for pattern: {{args}}
+
+Search Results:
+!{grep -r "{{args}}" .}
+
+
+```
+
+### Step 4: Add Context File (if needed)
+Create `GEMINI.md`:
+
+```markdown
+# Extension Name
+
+Brief description of the extension's purpose.
+
+## Available Tools
+- `tool_name`: Description of what it does
+
+## Usage Guidelines
+- How the model should behave
+- When to use specific tools
+- Coding standards or preferences
+
+## Examples
+Example interactions or use cases
+```
+
+**Best Practices for GEMINI.md:**
+- Keep it focused and concise
+- Explain high-level goals and tool usage
+- Use clear, actionable language
+- Don't dump entire documentation
+
+### Step 5: Add Agent Skills (if needed)
+Create `skills/[skill-name]/SKILL.md`:
+
+```markdown
+---
+name: skill-name
+description: When to activate this skill. Be specific about trigger conditions.
+---
+
+# Skill Title
+
+Detailed expertise and procedures for this skill.
+
+## When to Use
+- Specific scenarios
+- Trigger phrases
+
+## Workflow
+1. Step-by-step process
+2. What to check
+3. How to respond
+```
+
+### Step 6: Add Security Settings (if needed)
+For API keys or sensitive data, add to `gemini-extension.json`:
+
+```json
+{
+  "settings": [
+    {
+      "name": "API Key",
+      "envVar": "MY_API_KEY",
+      "sensitive": true,
+      "description": "Your API key for service XYZ"
+    }
+  ]
+}
+```
+
+### Step 7: Local Development
+1. Install dependencies (if using Node.js):
+```bash
+cd my-extension
+npm install
+npm run build  # If using TypeScript
+```
+
+2. Link for development:
+```bash
+gemini extensions link .
+```
+
+3. Test in Gemini CLI (restart CLI after linking)
+
+4. Iterate: Make changes → Rebuild → Restart CLI
+
+### Step 8: Add Documentation
+Create `README.md`:
+
+```markdown
+# Extension Name
+
+Description of what your extension does.
+
+## Features
+- Feature 1
+- Feature 2
+
+## Installation
+bash
+gemini extensions install github.com/username/repo
+
+
+## Usage
+Examples of how to use the extension
+
+## Configuration
+Any required setup or configuration
+
+## Commands
+List of available commands (if any)
+
+## Tools
+List of available tools (if any)
+```
+
+## Security Best Practices
+
+### 1. Minimal Permissions
+Only request necessary permissions. Avoid broad access.
+
+### 2. Input Validation
+Always validate inputs to prevent code execution or unauthorized access:
+
+```typescript
+// Validate file paths
+if (!path.resolve(inputPath).startsWith(path.resolve(allowedDir) + path.sep)) {
+  throw new Error('Access denied');
+}
+```
+
+### 3. Restrict Dangerous Tools
+In `gemini-extension.json`:
+```json
+{
+  "excludeTools": ["run_shell_command(rm -rf *)"]
+}
+```
+
+### 4. Use Sensitive Settings
+For API keys and secrets, always use `sensitive: true`
+
+## Refactoring Existing Code
+
+If converting existing code to an extension:
+
+1. **Identify Components:**
+   - Functions → MCP tools
+   - Scripts → Custom commands
+   - Documentation → GEMINI.md or Skills
+   - Configuration → Settings in manifest
+
+2. **Restructure:**
+   - Move source to `src/`
+   - Create manifest
+   - Wrap functionality in MCP server or commands
+
+3. **Adapt:**
+   - Convert CLI arguments to tool parameters
+   - Update imports and paths
+   - Add proper error handling
+
+4. **Test:**
+   - Link locally
+   - Verify all functionality works
+   - Test edge cases
+
+## Publishing Your Extension
+
+### Option 1: GitHub Repository (Simple)
+1. Push to GitHub
+2. Users install via: `gemini extensions install github.com/user/repo`
+
+### Option 2: GitHub Releases (Advanced)
+1. Follow semantic versioning (MAJOR.MINOR.PATCH)
+2. Create releases with clean artifacts
+3. Include only: `dist/`, `gemini-extension.json`, `package.json`, `README.md`
+4. Exclude: `node_modules/`, `src/`, `.git/`
+
+### Release Channels
+Use branches for stability levels:
+- `main` - Stable releases
+- `dev` - Development/beta features
+
+## Common Patterns
+
+### Pattern 1: API Integration
+MCP server + GEMINI.md explaining the API + Settings for API key
+
+### Pattern 2: Workflow Automation
+Custom commands + Shell command execution + GEMINI.md for context
+
+### Pattern 3: Specialized Assistant
+GEMINI.md for personality + Agent skills for complex tasks + MCP tools for data access
+
+### Pattern 4: Code Quality
+Agent skills for auditing + Hooks for validation + Custom commands for common checks
+
+## Next Steps
+
+Based on your specific needs, I can help you:
+1. Set up the initial file structure
+2. Write the MCP server code for your tools
+3. Create custom command templates
+4. Draft GEMINI.md context
+5. Design agent skills
+6. Configure security settings
+7. Prepare for release
+
+Please tell me:
+- What is the main purpose of your extension?
+- Are you starting from scratch or refactoring existing code?
+- Which components do you need (MCP server, commands, skills, etc.)?
+- What tools or functionality should it provide?
+"""

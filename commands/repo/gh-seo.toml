@@ -1,0 +1,26 @@
+description = "Analyzes repo and uses gh-cli to update description, topics, and README badges for SEO"
+prompt = """
+1. **Analyze Environment**: 
+   - Identify the project's primary purpose by reading the directory name, README.md, and source code.
+   - Run `gh repo view --json name,description,repositoryTopics,url` (Remember: use 'repositoryTopics', NOT 'topics').
+
+2. **Generate Metadata**: 
+   - Create a professional, SEO-dense description (max 160 chars) that summarizes the technical value proposition.
+   - Generate 5-10 relevant topics based on the language, build tools, and domain (e.g., 'cryptography', 'embedded', 'web-api').
+   - Construct a homepage URL pointing to the README (e.g., [repo-url]/blob/main/README.md).
+
+3. **Execute Updates**:
+   - Run `gh repo edit --description "[Generated Description]"`
+   - Run `gh repo edit --add-topic "[Comma,Separated,Topics]"`
+   - Run `gh repo edit --homepage "[README-URL]"` (Note: Use --homepage, NOT --homepage-url).
+
+4. **Enhance README**:
+   - Detect the tech stack and add 3-5 relevant shields.io badges at the top (e.g., Language, Build System, Version, or CI status).
+   - Ensure the main header (# Title) is followed by a clear, one-sentence explanation of what the project does.
+
+**Constraints**: 
+- Use 'repositoryTopics' for viewing.
+- Use '--add-topic' for topics.
+- Use '--homepage' for the website URL.
+- Do not mention "Virtual HIL" or "Testing" unless those are actually found in the current repo.
+"""
