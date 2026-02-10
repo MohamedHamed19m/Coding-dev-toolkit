@@ -27,7 +27,7 @@ Standalone Python utilities:
 - `wtm.py` - Git worktree manager
 - `discover.py` - AI context discovery from markdown front matter
 - `merge_files.py` - Combine files by extension into one output
-- `canoe_batch_generator.py` - Generate multiple CANoe XML test reports for testing
+- `batch_generator.py` - Generate multiple XML test reports samples
 
 ### Docs (`docs/`)
 Documentation with YAML front matter for AI discoverability.
