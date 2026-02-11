@@ -43,6 +43,20 @@ def get_current_branch():
     """Detects the branch you are currently on in the main repo."""
     return run_git(["rev-parse", "--abbrev-ref", "HEAD"])
 
+def get_branch_sha(branch_name, short=False):
+    """Return the commit SHA for a branch."""
+    args = ["rev-parse"]
+    if short:
+        args.append("--short")
+    args.append(branch_name)
+    return run_git(args)
+
+
+def get_branch_shad(branch_name):
+    """ return the short commit for branch """
+    return get_branch_sha(branch_name, short=True)
+
+
 
 def get_worktree_age(path):
     """Gets the age of a worktree based on its last modification time."""
@@ -63,28 +77,47 @@ def get_worktree_age(path):
         return "?"
 
 
-def is_merged(branch_name, parent_branch):
-    """Checks if the worktree branch is merged into the current parent branch."""
+def get_merge_status(branch_name, parent_branch):
+    """
+    Returns (status, status_color) based on SHA comparison and merge status:
+    - FRESH: branch SHA == parent SHA (hasn't diverged)
+    - MERGED: branch SHA != parent SHA but git says it's merged
+    - NOT MERGED: branch has unique commits not in parent
+    """
     if not branch_name or not parent_branch or branch_name == parent_branch:
-        return False
+        return "N/A", "dim"
 
+    branch_sha = get_branch_sha(branch_name)
+    parent_sha = get_branch_sha(parent_branch)
+
+    if not branch_sha or not parent_sha:
+        return "ERROR", "red"
+
+    # 1. SHAs match → FRESH (branch at same commit as parent)
+    if branch_sha == parent_sha:
+        return "FRESH", "cyan"
+
+    # 2. Use git branch --merged to check if branch was actually merged
     merged_output = run_git(["branch", "--merged", parent_branch])
-    if not merged_output:
-        return False
+    if merged_output and branch_name in [b.strip().replace("* ", "") for b in merged_output.splitlines()]:
+        return "MERGED", "green"
 
-    merged_branches = [b.strip().replace("* ", "") for b in merged_output.splitlines()]
-    return branch_name in merged_branches
+    # 3. Branch has unique commits not in parent
+    return "NOT MERGED", "yellow"
 
 
 def get_worktrees():
-    """Returns a list of worktree dictionaries, excluding the main repo."""
+    """
+    Returns a list of worktree dictionaries, excluding the main repo.
+    Uses SHA-based comparison to accurately determine merge status.
+    """
     output = run_git(["worktree", "list"])
     if not output:
         return []
 
     parent_branch = get_current_branch()
+    parent_sha = get_branch_sha(parent_branch, short=True) if parent_branch else "?"
     lines = output.splitlines()
-    # Removed unused main_path assignment here to fix Ruff F841
 
     linked_trees = []
     for line in lines[1:]:
@@ -98,12 +131,11 @@ def get_worktrees():
         age = get_worktree_age(path)
 
         if branch:
-            if is_merged(branch, parent_branch):
-                status, status_color = "MERGED", "green"
-            else:
-                status, status_color = "NOT MERGED", "yellow"
+            branch_sha = get_branch_sha(branch, short=True) or "?"
+            status, status_color = get_merge_status(branch, parent_branch)
         else:
             status, status_color = "DETACHED", "red"
+            branch_sha = "?"
 
         linked_trees.append(
             {
@@ -113,11 +145,13 @@ def get_worktrees():
                 "status_color": status_color,
                 "age": age,
                 "parent_branch": parent_branch,
+                "parent_sha": parent_sha,
+                "branch_sha": branch_sha,
             }
         )
     return linked_trees
 
-def _create_worktree_table(title, show_number=True, show_age=False):
+def _create_worktree_table(title, show_number=True, show_age=False, show_sha=False):
     """Helper to create a consistent worktree table."""
     table = Table(
         title=title, box=box.ROUNDED, show_header=True, header_style="bold magenta"
@@ -130,13 +164,16 @@ def _create_worktree_table(title, show_number=True, show_age=False):
     table.add_column("Status", width=12)
     if show_age:
         table.add_column("Age", justify="right", width=6)
+    if show_sha:
+        table.add_column("SHA", style="dim", width=8)
 
     return table
 
 
 def list_worktrees():
-    """Display worktrees in a beautiful table."""
+    """Display worktrees in a beautiful table with SHA information."""
     parent = get_current_branch()
+    parent_sha = get_branch_sha(parent, short=True) if parent else "?"
     output = run_git(["worktree", "list"])
     if not output:
         console.print("[yellow]No worktrees found.[/yellow]")
@@ -148,7 +185,9 @@ def list_worktrees():
     console.print()
     console.print(
         Panel(
-            f"[bold cyan]Main Repository:[/bold cyan] {main_path}\n[bold cyan]Current Branch:[/bold cyan] [bold green]{parent}[/bold green]",
+            f"[bold cyan]Main Repository:[/bold cyan] {main_path}\n"
+            f"[bold cyan]Current Branch:[/bold cyan] [bold green]{parent}[/bold green] "
+            f"[dim]({parent_sha})[/dim]",
             title="🌳 Git Worktree Manager",
             border_style="cyan",
         )
@@ -160,12 +199,14 @@ def list_worktrees():
         return []
 
     table = _create_worktree_table(
-        f"Linked Worktrees (comparing to: {parent})", show_age=True
+        f"Linked Worktrees (comparing to: {parent})", show_age=True, show_sha=True
     )
 
     for i, wt in enumerate(linked, 1):
         status_text = f"[{wt['status_color']}]{wt['status']}[/{wt['status_color']}]"
-        table.add_row(str(i), wt["path"], wt["branch"], status_text, wt["age"])
+        table.add_row(
+            str(i), wt["path"], wt["branch"], status_text, wt["age"], wt["branch_sha"]
+        )
 
     console.print(table)
     console.print()
@@ -289,11 +330,12 @@ def remove_worktree():
         table.add_column("Path", style="cyan")
         table.add_column("Branch", style="bold green")
         table.add_column("Status")
+        table.add_column("SHA", style="dim")
 
         not_merged_count = 0
         for i, target in enumerate(targets, 1):
             status = f"[{target['status_color']}]{target['status']}[/{target['status_color']}]"
-            table.add_row(str(i), target["path"], target["branch"], status)
+            table.add_row(str(i), target["path"], target["branch"], status, target["branch_sha"])
             if target["status"] == "NOT MERGED":
                 not_merged_count += 1
 
