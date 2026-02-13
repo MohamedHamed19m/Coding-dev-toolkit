@@ -7,13 +7,47 @@
 # ///
 
 """
-Context Discovery Script - Generic tool for any repository.
+Context Discovery Script – Generic tool for any repository.
 Scans markdown files for YAML front matter and generates AI-optimized context lists.
 
-Usage:
-    uv run discover.py                    # Human-readable list
-    uv run discover.py --ai               # AI-optimized format
-    uv run discover.py --dirs docs,src    # Custom directories
+## Installation
+
+**Note:** When using Gemini CLI (or similar tools), global script access may not work
+because these CLIs prevent inheriting from your shell profile.
+
+### First Best Practice – Install as Global Tool
+
+Create a standalone library package and install it globally:
+
+```bash
+uv init --lib discover-docs
+cd discover-docs
+
+# Create src/discover_docs with your code
+# Update pyproject.toml with:
+# [project.scripts]
+# discover-docs = "discover_docs:main"
+
+uv add typer pyyaml type_extensions
+uv tool install . -e
+```
+
+Then use it anywhere:
+```bash
+uvx discover-docs
+uvx discover-docs --ai
+uvx discover-docs --dirs docs,src
+```
+
+### Second Best Practice – Use in Repository
+
+Copy the script to your repo and run with uv:
+
+```bash
+uv run discover.py                    # Human-readable list
+uv run discover.py --ai               # AI-optimized format
+uv run discover.py --dirs docs,src    # Custom directories
+```
 """
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Annotated
