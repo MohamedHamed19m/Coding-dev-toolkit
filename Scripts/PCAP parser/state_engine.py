@@ -132,13 +132,13 @@ class DiagnosticStateEngine:
             
             # --- Phase 1: Full ISO 13400 Coverage ---
             
-            if payload_type == 0x0005 and len(doip_data) >= 7:
+            if payload_type == 0x0005 and len(doip_data) >= 3:
                 # Routing Activation Request
                 sa = struct.unpack("!H", doip_data[0:2])[0]
                 session.tester_logical_address = sa
                 session.doip_routing_metrics.requests_sent += 1
                 
-            elif payload_type == 0x0006 and len(doip_data) >= 13:
+            elif payload_type == 0x0006 and len(doip_data) >= 5:
                 # Routing Activation Response
                 sa = struct.unpack("!H", doip_data[0:2])[0]
                 ta = struct.unpack("!H", doip_data[2:4])[0]
